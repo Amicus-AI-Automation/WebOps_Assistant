@@ -59,25 +59,105 @@
 
             <!-- Cart Section -->
             <section id="sectionCart" class="content-section">
-                <div id="cartCard" class="card-wide">
-                    <h2 id="cartTitle">Shopping Cart</h2>
-                    <p id="cartDesc">Manage your items and checkout here.</p>
+                <div id="cartHeaderCard" class="card-wide">
+                    <h2 id="cartTitle">Shopping Catalog</h2>
+                    <p id="cartDesc">Select items to add to your cart.</p>
+                </div>
+
+                <div id="productGrid" class="product-grid">
+                    <!-- Item 1 -->
+                    <div id="product1" class="product-card">
+                        <h3 id="p1Title">Premium Laptop</h3>
+                        <p id="p1Price">$1200</p>
+                        <button id="p1AddBtn" class="primary-btn-sm" onclick="addToCart('Premium Laptop', 1200)">Add to
+                            Cart</button>
+                    </div>
+                    <!-- Item 2 -->
+                    <div id="product2" class="product-card">
+                        <h3 id="p2Title">Wireless Headphones</h3>
+                        <p id="p2Price">$250</p>
+                        <button id="p2AddBtn" class="primary-btn-sm" onclick="addToCart('Wireless Headphones', 250)">Add
+                            to Cart</button>
+                    </div>
+                    <!-- Item 3 -->
+                    <div id="product3" class="product-card">
+                        <h3 id="p3Title">High-Res Monitor</h3>
+                        <p id="p3Price">$450</p>
+                        <button id="p3AddBtn" class="primary-btn-sm" onclick="addToCart('High-Res Monitor', 450)">Add to
+                            Cart</button>
+                    </div>
+                </div>
+
+                <div id="cartItemsCard" class="card-wide">
+                    <h2 id="chosenItemsTitle">Chosen Items</h2>
+                    <ul id="cartDisplayList" class="cart-list">
+                        <!-- Items added will appear here -->
+                    </ul>
+                    <div id="cartActions" class="cart-actions">
+                        <button id="downloadCartBtn" class="secondary-btn" onclick="downloadCart()">Download Cart
+                            Details</button>
+                        <button id="sendEmailBtn" class="secondary-btn" onclick="sendCartEmail()">Send Email</button>
+                    </div>
                 </div>
             </section>
 
             <!-- Teams Section -->
             <section id="sectionTeams" class="content-section">
-                <div id="teamsCard" class="card-wide">
-                    <h2 id="teamsTitle">Team Management</h2>
-                    <p id="teamsDesc">Collaborate with your team members.</p>
+                <div id="teamsHeaderCard" class="card-wide">
+                    <h2 id="teamsTitle">Team Issue Reporting</h2>
+                    <p id="teamsDesc">Report team-related issues to the on-shift administrator.</p>
+                </div>
+
+                <div id="teamsAssignCard" class="card-wide">
+                    <h2 id="teamsAssignTitle">Assign Issue to Admin</h2>
+                    <form id="teamsIssueForm" onsubmit="event.preventDefault(); assignTeamIssue();">
+                        <div id="teamsField1" class="form-group">
+                            <label for="adminSelect">Select Admin (Shift):</label>
+                            <select id="adminSelect" class="input-field" required>
+                                <option value="" disabled selected>Choose an Administrator</option>
+                                <option value="Swapnil|singhswapnil060303@gmail.com">Admin 1 - Swapnil (9 am to 5 pm)
+                                </option>
+                                <option value="Nandani|nandinisingh1225@gmail.com">Admin 2 - Nandani (6 pm to 2 am)
+                                </option>
+                                <option value="Aditya|oparchon@gmail.com">Admin 3 - Aditya (2 am to 9 am)</option>
+                            </select>
+                        </div>
+                        <div id="teamsActions" class="form-actions">
+                            <button type="submit" id="submitTeamIssueBtn" class="primary-btn">Send & Assign</button>
+                        </div>
+                    </form>
+                    <div id="assignmentMessage" class="assignment-msg hidden">
+                        <p id="assignmentText"></p>
+                    </div>
                 </div>
             </section>
 
             <!-- Customer Details Section -->
             <section id="sectionCustomer" class="content-section">
-                <div id="customerCard" class="card-wide">
-                    <h2 id="customerTitle">Customer Details</h2>
-                    <p id="customerDesc">View and manage customer information.</p>
+                <div id="custAlertCard" class="card-wide alert-card">
+                    <h2 id="custAlertTitle">⚠️ Missing/Incorrect Credentials Detected</h2>
+                    <p id="custAlertMsg">User <b>singhswapnil060303@gmail.com</b> is attempting to use password
+                        <b>00987654321</b> which does not match stored records.
+                    </p>
+                </div>
+
+                <div id="custVerifyCard" class="card-wide">
+                    <h2 id="custVerifyTitle">Verify Reported Credentials</h2>
+                    <form id="custVerifyForm">
+                        <div id="verifyField1" class="form-group">
+                            <label for="verifyEmail">Reported Email:</label>
+                            <input type="email" id="verifyEmail" value="singhswapnil060303@gmail.com"
+                                class="input-field" readonly>
+                        </div>
+                        <div id="verifyField2" class="form-group">
+                            <label for="verifyPass">Reported Password:</label>
+                            <input type="text" id="verifyPass" value="00987654321" class="input-field" readonly>
+                        </div>
+                        <div id="verifyActions" class="form-actions">
+                            <button type="button" id="verifyBtn" class="primary-btn"
+                                onclick="verifyAndSendCorrection()">Verify & Send Correction</button>
+                        </div>
+                    </form>
                 </div>
             </section>
         </main>
@@ -91,6 +171,36 @@
     </div>
 
     <script src="script.js" id="dashboardScript"></script>
+    <!-- Email Modal -->
+    <div id="emailModal" class="modal-overlay hidden">
+        <div id="emailModalContent" class="modal-content card">
+            <h2 id="emailModalTitle">Send Report Directly</h2>
+            <form id="emailDirectForm">
+                <div id="emailField1" class="form-group">
+                    <label for="emailTo">To:</label>
+                    <input type="email" id="emailTo" value="oparchon@gmail.com" class="input-field" required>
+                </div>
+                <div id="emailField2" class="form-group">
+                    <label for="emailSubject">Subject:</label>
+                    <input type="text" id="emailSubject" value="worked on this error" class="input-field" required>
+                </div>
+                <div id="emailField3" class="form-group">
+                    <label for="emailMessage">Message:</label>
+                    <textarea id="emailMessage" class="input-field" rows="6" required>Steps performed starting 3 step:
+1. Identified the root cause of the system error.
+2. Implemented a fix in the core logic module.
+3. Verified the resolution across all environments.
+
+Sender: swapnil</textarea>
+                </div>
+                <div id="emailActions" class="modal-actions">
+                    <button type="submit" id="emailSendBtn" class="primary-btn">Send Now</button>
+                    <button type="button" id="emailCancelBtn" class="secondary-btn"
+                        onclick="closeEmailModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 
 </html>

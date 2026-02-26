@@ -34,6 +34,234 @@ function showPopup(message) {
 }
 
 /**
+ * Cart Logic
+ */
+let cartItems = [];
+
+function addToCart(name, price) {
+    const id = 'cart-' + Date.now();
+    cartItems.push({ id, name, price });
+    updateCartUI();
+}
+
+function updateCartUI() {
+    const list = document.getElementById('cartDisplayList');
+    if (!list) return;
+
+    list.innerHTML = '';
+    cartItems.forEach(item => {
+        const li = document.createElement('li');
+        li.id = item.id;
+        li.className = 'cart-item';
+        li.innerHTML = `
+            <span id="name-${item.id}">${item.name}</span>
+            <span id="price-${item.id}">$${item.price}</span>
+        `;
+        list.appendChild(li);
+    });
+}
+
+function downloadCart() {
+    if (cartItems.length === 0) {
+        alert("Cart is empty!");
+        return;
+    }
+
+    let content = "Cart Details:\n\n";
+    cartItems.forEach(item => {
+        content += `${item.name}: $${item.price}\n`;
+    });
+
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.id = 'tempDownloadLink';
+    a.href = url;
+    a.download = 'cart_details.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function verifyAndSendCorrection() {
+    const targetEmail = "singhswapnil060303@gmail.com";
+
+    // Get users from localStorage
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const user = users.find(u => u.email === targetEmail);
+
+    if (!user) {
+        showPopup("User record not found in system!");
+        return;
+    }
+
+    // Found correct credentials
+    const originalPassword = user.password;
+
+    // Show Modal
+    const modal = document.getElementById('emailModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+
+        // Populate modal with correction info
+        document.getElementById('emailTo').value = targetEmail;
+        document.getElementById('emailSubject').value = "Correction: Your Authentication Credentials";
+        document.getElementById('emailMessage').value = `Hello,
+
+We detected a discrepancy in your credentials. Please use your original authentication details:
+
+Email: ${targetEmail}
+Password: ${originalPassword}
+
+Steps performed:
+1. Checked reported password against system records.
+2. Verified original signup data.
+3. Generated this correction notification.
+
+Regards,
+Admin (session: ${JSON.parse(localStorage.getItem('session') || '{}').email || "unknown"})`;
+    }
+}
+
+function sendCartEmail() {
+    // Instead of direct simulation, open the form modal
+    const modal = document.getElementById('emailModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+
+        // Update sender name in the textarea with current session
+        const session = JSON.parse(localStorage.getItem('session') || '{}');
+        const senderEmail = session.email || "Unknown User";
+        const messageArea = document.getElementById('emailMessage');
+        if (messageArea) {
+            messageArea.value = `Steps performed starting 3 step:
+1. Identified the root cause of the system error.
+2. Implemented a fix in the core logic module.
+3. Verified the resolution across all environments.
+
+Sender: ${senderEmail}`;
+        }
+    }
+}
+
+function closeEmailModal() {
+    const modal = document.getElementById('emailModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function assignTeamIssue() {
+    const adminSelect = document.getElementById('adminSelect');
+    const selectedOption = adminSelect.options[adminSelect.selectedIndex].text;
+    const [adminName, adminEmail] = adminSelect.value.split('|');
+
+    // Automatically generate issue content
+    const automatedMsg = `New Team Issue Alert: An issue has been reported for the team. 
+Assigned to: ${adminName} 
+Shift Context: ${selectedOption}`;
+
+    // Get session user email
+    const session = JSON.parse(localStorage.getItem('session') || '{}');
+    const senderEmail = session.email || "Unknown User";
+
+    const assignMsgDiv = document.getElementById('assignmentMessage');
+    const assignText = document.getElementById('assignmentText');
+    const submitBtn = document.getElementById('submitTeamIssueBtn');
+
+    // Display assignment message
+    assignText.textContent = `Your issue is assigned to ${adminName}`;
+    assignMsgDiv.classList.remove('hidden');
+
+    // Visual feedback on button
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sending Issue to Admin...";
+
+    // Use FormSubmit.co AJAX API to send the real mail
+    fetch(`https://formsubmit.co/ajax/${adminEmail}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            _subject: `New Team Issue Assigned to ${adminName}`,
+            message: automatedMsg,
+            sender: senderEmail,
+            assigned_to: adminName,
+            _captcha: "false"
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success === "true" || data.success === true) {
+                showPopup(`Success! Issue reported and assigned to ${adminName} (${adminEmail})`);
+                console.log("Team Issue Sent Success:", data);
+            } else {
+                showPopup("Error sending issue: " + (data.message || "Unknown error"));
+                console.error("Team Issue Sent Error:", data);
+            }
+        })
+        .catch(error => {
+            showPopup("Network Error: Could not reach email service for team assignment");
+            console.error("Team Assignment Fetch Error:", error);
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Send & Assign";
+        });
+}
+
+function handleDirectEmail(event) {
+    event.preventDefault();
+    const sendBtn = document.getElementById('emailSendBtn');
+    const recipient = document.getElementById('emailTo').value;
+    const subject = document.getElementById('emailSubject').value;
+    const message = document.getElementById('emailMessage').value;
+
+    // Get session user email
+    const session = JSON.parse(localStorage.getItem('session') || '{}');
+    const senderEmail = session.email || "Unknown User";
+
+    // Visual feedback
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Sending Real Email...";
+
+    // Use FormSubmit.co AJAX API
+    // Note: The first time you send to a new email, the recipient gets an activation link.
+    fetch(`https://formsubmit.co/ajax/${recipient}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            _subject: subject,
+            message: message,
+            sender: senderEmail,
+            _captcha: "false" // Disable captcha for AJAX
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success === "true" || data.success === true) {
+                showPopup(`Success! Email has been sent to ${recipient}`);
+                console.log("FormSubmit Success:", data);
+            } else {
+                showPopup("Email Error: " + (data.message || "Failed to send"));
+                console.error("FormSubmit Error:", data);
+            }
+        })
+        .catch(error => {
+            showPopup("Network Error: Could not reach email service");
+            console.error("Fetch Error:", error);
+        })
+        .finally(() => {
+            // Reset and close
+            sendBtn.disabled = false;
+            sendBtn.textContent = "Send Now";
+            closeEmailModal();
+        });
+}
+
+/**
  * Dashboard Navigation
  */
 function showSection(sectionId) {
@@ -217,5 +445,11 @@ document.addEventListener('DOMContentLoaded', () => {
         updateErrorTable();
         // Start engine
         startErrorSimulation();
+
+        // Direct Email Form handler
+        const emailForm = document.getElementById('emailDirectForm');
+        if (emailForm) {
+            emailForm.addEventListener('submit', handleDirectEmail);
+        }
     }
 });
