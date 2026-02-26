@@ -22,15 +22,43 @@
     <div id="layoutWrapper" class="layout-wrapper">
         <aside id="sidebar" class="sidebar">
             <ul id="sidebarMenu" class="sidebar-menu">
-                <li id="menuCart" class="menu-item active" onclick="showSection('cart')">Cart</li>
+                <li id="menuDashboard" class="menu-item active" onclick="showSection('dashboard')">Dashboard</li>
+                <li id="menuCart" class="menu-item" onclick="showSection('cart')">Cart</li>
                 <li id="menuTeams" class="menu-item" onclick="showSection('teams')">Teams</li>
                 <li id="menuCustomer" class="menu-item" onclick="showSection('customer')">Customer Details</li>
             </ul>
         </aside>
 
         <main id="mainContent" class="main-content">
+            <!-- Dashboard Section (With Error Log) -->
+            <section id="sectionDashboard" class="content-section active">
+                <div id="dashboardWelcomeCard" class="card-wide">
+                    <h2 id="dashboardWelcomeTitle">System Overview</h2>
+                    <p id="dashboardWelcomeDesc">Welcome to your primary workspace dashboard.</p>
+                </div>
+
+                <div id="errorLogCard" class="card-wide">
+                    <h2 id="errorLogTitle">System Error Log</h2>
+                    <div id="tableContainer" class="table-container">
+                        <table id="errorTable">
+                            <thead id="tableHead">
+                                <tr id="headRow">
+                                    <th id="thId">Error ID</th>
+                                    <th id="thMsg">Error Message</th>
+                                    <th id="thTime">Time Arrived</th>
+                                    <th id="thStatus">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="errorTableBody">
+                                <!-- Errors will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- Cart Section -->
-            <section id="sectionCart" class="content-section active">
+            <section id="sectionCart" class="content-section">
                 <div id="cartCard" class="card-wide">
                     <h2 id="cartTitle">Shopping Cart</h2>
                     <p id="cartDesc">Manage your items and checkout here.</p>
@@ -50,27 +78,6 @@
                 <div id="customerCard" class="card-wide">
                     <h2 id="customerTitle">Customer Details</h2>
                     <p id="customerDesc">View and manage customer information.</p>
-                </div>
-            </section>
-
-            <!-- Error Log Section -->
-            <section id="sectionErrorLog" class="content-section active-persistent">
-                <div id="errorLogCard" class="card-wide">
-                    <h2 id="errorLogTitle">System Error Log</h2>
-                    <div id="tableContainer" class="table-container">
-                        <table id="errorTable">
-                            <thead id="tableHead">
-                                <tr id="headRow">
-                                    <th id="thId">Error ID</th>
-                                    <th id="thMsg">Error Message</th>
-                                    <th id="thTime">Time Arrived</th>
-                                </tr>
-                            </thead>
-                            <tbody id="errorTableBody">
-                                <!-- Errors will be injected here -->
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
             </section>
         </main>
