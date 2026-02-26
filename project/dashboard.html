@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" id="dashboardHtml">
+
+<head id="dashboardHead">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="dashboardTitle">Workspace Dashboard</title>
+    <link rel="stylesheet" href="style.css" id="dashboardStyleLink">
+</head>
+
+<body id="dashboardBody">
+    <nav id="navbar" class="navbar">
+        <div id="navContainer" class="nav-container">
+            <h1 id="brandName">WorkSpace</h1>
+            <div id="navRight" class="nav-right">
+                <span id="userDisplay">Logged in as: <span id="userEmailSpan"></span></span>
+                <button id="logoutBtn" class="secondary-btn">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div id="layoutWrapper" class="layout-wrapper">
+        <aside id="sidebar" class="sidebar">
+            <ul id="sidebarMenu" class="sidebar-menu">
+                <li id="menuCart" class="menu-item active" onclick="showSection('cart')">Cart</li>
+                <li id="menuTeams" class="menu-item" onclick="showSection('teams')">Teams</li>
+                <li id="menuCustomer" class="menu-item" onclick="showSection('customer')">Customer Details</li>
+            </ul>
+        </aside>
+
+        <main id="mainContent" class="main-content">
+            <!-- Cart Section -->
+            <section id="sectionCart" class="content-section active">
+                <div id="cartCard" class="card-wide">
+                    <h2 id="cartTitle">Shopping Cart</h2>
+                    <p id="cartDesc">Manage your items and checkout here.</p>
+                </div>
+            </section>
+
+            <!-- Teams Section -->
+            <section id="sectionTeams" class="content-section">
+                <div id="teamsCard" class="card-wide">
+                    <h2 id="teamsTitle">Team Management</h2>
+                    <p id="teamsDesc">Collaborate with your team members.</p>
+                </div>
+            </section>
+
+            <!-- Customer Details Section -->
+            <section id="sectionCustomer" class="content-section">
+                <div id="customerCard" class="card-wide">
+                    <h2 id="customerTitle">Customer Details</h2>
+                    <p id="customerDesc">View and manage customer information.</p>
+                </div>
+            </section>
+
+            <!-- Error Log Section -->
+            <section id="sectionErrorLog" class="content-section active-persistent">
+                <div id="errorLogCard" class="card-wide">
+                    <h2 id="errorLogTitle">System Error Log</h2>
+                    <div id="tableContainer" class="table-container">
+                        <table id="errorTable">
+                            <thead id="tableHead">
+                                <tr id="headRow">
+                                    <th id="thId">Error ID</th>
+                                    <th id="thMsg">Error Message</th>
+                                    <th id="thTime">Time Arrived</th>
+                                </tr>
+                            </thead>
+                            <tbody id="errorTableBody">
+                                <!-- Errors will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Simulation Error Popup -->
+    <div id="simPopupContainer" class="popup-container hidden">
+        <div id="simPopupContent" class="popup-content error">
+            <span id="simPopupMessage"></span>
+        </div>
+    </div>
+
+    <script src="script.js" id="dashboardScript"></script>
+</body>
+
+</html>
