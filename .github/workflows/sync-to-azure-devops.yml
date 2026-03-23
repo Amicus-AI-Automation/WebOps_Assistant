@@ -195,20 +195,36 @@ jobs:
           echo "── Tags ──"
           git tag -l
 
-      # ── Step 4: Add Azure DevOps as a remote ──
-      - name: Configure Azure DevOps remote
+      # ── Step 4: Add Azure DevOps as a remote ──      - name: Configure Azure DevOps remote
         env:
           AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
         run: |
+          # Disable git from using a credential helper that might interfere
+          git config --local credential.helper ""
+
+          # URL-encode the PAT to handle special characters
+          ENCODED_PAT=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${AZURE_DEVOPS_PAT}', safe=''))")
+
           # Construct the Azure DevOps repo URL with embedded PAT for auth
-          AZURE_REPO_URL="https://${AZURE_DEVOPS_PAT}@dev.azure.com/${{ vars.AZURE_DEVOPS_ORG }}/${{ vars.AZURE_DEVOPS_PROJECT }}/_git/${{ vars.AZURE_DEVOPS_REPO }}"
+          # Format: https://<PAT>@dev.azure.com/<org>/<project>/_git/<repo>
+          AZURE_REPO_URL="https://${ENCODED_PAT}@dev.azure.com/${{ vars.AZURE_DEVOPS_ORG }}/${{ vars.AZURE_DEVOPS_PROJECT }}/_git/${{ vars.AZURE_DEVOPS_REPO }}"
 
           # Add as a remote (remove first if it already exists)
           git remote remove azure 2>/dev/null || true
           git remote add azure "${AZURE_REPO_URL}"
 
+          # Verify the remote is reachable (without exposing PAT)
           echo "✅ Azure DevOps remote configured."
           echo "   Target: https://dev.azure.com/${{ vars.AZURE_DEVOPS_ORG }}/${{ vars.AZURE_DEVOPS_PROJECT }}/_git/${{ vars.AZURE_DEVOPS_REPO }}"
+
+          # Test connectivity
+          if git ls-remote azure HEAD > /dev/null 2>&1; then
+            echo "✅ Successfully connected to Azure DevOps repository."
+          else
+            echo "::error::Cannot reach Azure DevOps repository. Check PAT, org, project, and repo name."
+            echo "   Verify URL: https://dev.azure.com/${{ vars.AZURE_DEVOPS_ORG }}/${{ vars.AZURE_DEVOPS_PROJECT }}/_git/${{ vars.AZURE_DEVOPS_REPO }}"
+            exit 1
+          fi
 
       # ── Step 5: Dry-run check ──
       - name: Dry run check
@@ -224,13 +240,12 @@ jobs:
           git tag -l
           echo ""
           echo "── Diff summary vs Azure DevOps ──"
-          git push azure --mirror --dry-run 2>&1 || echo "⚠️ Could not reach Azure DevOps for dry-run comparison."
-
-      # ── Step 6: Push all refs to Azure DevOps ──
+          git push azure --mirror --dry-run 2>&1 || echo "⚠️ Could not reach Azure DevOps for dry-run comparison."      # ── Step 6: Push all refs to Azure DevOps ──
       - name: Sync all branches and tags to Azure DevOps
         if: github.event.inputs.dry_run != 'true'
         env:
           AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+          GIT_TERMINAL_PROMPT: 0  # Prevent git from hanging on auth prompts
         run: |
           echo "── Starting sync to Azure DevOps ──"
           echo "   Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -254,20 +269,35 @@ jobs:
             echo ""
             echo "── Push attempt $attempt of $MAX_RETRIES ──"
 
-            if git push azure $PUSH_ARGS 2>&1; then
+            OUTPUT=$(git push azure $PUSH_ARGS 2>&1) && {
+              echo "$OUTPUT"
               echo ""
               echo "✅ Sync completed successfully on attempt $attempt."
               exit 0
-            else
+            } || {
+              EXIT_CODE=$?
+              echo "$OUTPUT"
+              echo ""
+              echo "::warning::Push failed with exit code $EXIT_CODE"
+
+              # Provide specific guidance based on error
+              if echo "$OUTPUT" | grep -qi "authentication\|401\|403"; then
+                echo "::error::Authentication failed. The AZURE_DEVOPS_PAT may be invalid, expired, or missing Code (Read & Write) scope."
+              elif echo "$OUTPUT" | grep -qi "repository.*not found\|does not exist\|TF401019"; then
+                echo "::error::Repository not found. Verify AZURE_DEVOPS_ORG, AZURE_DEVOPS_PROJECT, and AZURE_DEVOPS_REPO values."
+              elif echo "$OUTPUT" | grep -qi "could not resolve host"; then
+                echo "::error::DNS resolution failed. Check network connectivity to dev.azure.com."
+              fi
+
               if [ "$attempt" -lt "$MAX_RETRIES" ]; then
-                echo "⚠️  Push failed. Retrying in ${RETRY_DELAY}s..."
+                echo "⚠️  Retrying in ${RETRY_DELAY}s..."
                 sleep $RETRY_DELAY
                 RETRY_DELAY=$((RETRY_DELAY * 2))
               else
-                echo "::error::Sync failed after $MAX_RETRIES attempts."
+                echo "::error::Sync failed after $MAX_RETRIES attempts with exit code $EXIT_CODE."
                 exit 1
               fi
-            fi
+            }
           done
 
       # ── Step 7: Verify the sync ──
