@@ -178,7 +178,9 @@ jobs:
       - name: Configure git identity
         run: |
           git config user.name "${{ env.GIT_AUTHOR_NAME }}"
-          git config user.email "${{ env.GIT_AUTHOR_EMAIL }}"      # ── Step 3: Fetch all remote refs ──
+          git config user.email "${{ env.GIT_AUTHOR_EMAIL }}"
+
+      # ── Step 3: Fetch all remote refs ──
       - name: Fetch all remote branches and tags
         run: |
           echo "── Fetching all remote refs ──"
@@ -207,7 +209,8 @@ jobs:
           echo "── Tags ──"
           git tag -l
 
-      # ── Step 4: Add Azure DevOps as a remote ──      - name: Configure Azure DevOps remote
+      # ── Step 4: Add Azure DevOps as a remote ──
+      - name: Configure Azure DevOps remote
         env:
           AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
         run: |
@@ -252,7 +255,9 @@ jobs:
           git tag -l
           echo ""
           echo "── Diff summary vs Azure DevOps ──"
-          git push azure --mirror --dry-run 2>&1 || echo "⚠️ Could not reach Azure DevOps for dry-run comparison."      # ── Step 6: Push all refs to Azure DevOps ──
+          git push azure --mirror --dry-run 2>&1 || echo "⚠️ Could not reach Azure DevOps for dry-run comparison."
+
+      # ── Step 6: Push all refs to Azure DevOps ──
       - name: Sync all branches and tags to Azure DevOps
         if: github.event.inputs.dry_run != 'true'
         env:
