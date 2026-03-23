@@ -1,44 +1,20 @@
-# ============================================================================
-# GitHub Actions Workflow: Sync GitHub Repository to Azure DevOps
-# ============================================================================
-# This workflow mirrors the entire GitHub repository (all branches and tags)
-# to an Azure DevOps Git repository using a secure git push over HTTPS.
-#
-# PREREQUISITES:
-#   1. An Azure DevOps project with an empty Git repository created.
-#   2. A Personal Access Token (PAT) in Azure DevOps with "Code (Read & Write)" scope.
-#   3. GitHub repository secrets configured (see "SECRETS REQUIRED" below).
-# ============================================================================
-
 name: Sync to Azure DevOps
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TRIGGER CONFIGURATION
-# ──────────────────────────────────────────────────────────────────────────────
 on:
-  # Trigger on every push to any branch or tag
   push:
     branches:
-      - "**" # All branches — ensures full mirror
+      - "**"
     tags:
-      - "**" # All tags — ensures releases are synced
-
-  # Trigger on pull request merge to main/master (safety net)
+      - "**"
   pull_request:
     types: [closed]
     branches:
       - main
       - master
-
-  # Trigger on release publication
   release:
     types: [published]
-
-  # Trigger on repository dispatch (for external/API-based triggers)
   repository_dispatch:
     types: [sync-to-azure]
-
-  # Allow manual trigger from GitHub Actions UI
   workflow_dispatch:
     inputs:
       force_sync:
@@ -52,91 +28,59 @@ on:
         default: "false"
         type: boolean
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CONCURRENCY CONTROL
-# ──────────────────────────────────────────────────────────────────────────────
-# Prevents multiple sync jobs from running simultaneously, which could cause
-# race conditions or conflicts when pushing to Azure DevOps.
 concurrency:
   group: azure-devops-sync
-  cancel-in-progress: false # Don't cancel in-progress syncs; queue them instead
+  cancel-in-progress: false
 
-# ──────────────────────────────────────────────────────────────────────────────
-# ENVIRONMENT VARIABLES (Non-sensitive)
-# ──────────────────────────────────────────────────────────────────────────────
 env:
-  # The name of the Azure DevOps organization (e.g., "mycompany")
   AZURE_DEVOPS_ORG: ${{ vars.AZURE_DEVOPS_ORG }}
-
-  # The name of the Azure DevOps project (e.g., "WebOps")
   AZURE_DEVOPS_PROJECT: ${{ vars.AZURE_DEVOPS_PROJECT }}
-
-  # The name of the target repository in Azure DevOps (e.g., "WebOps_Assistant")
   AZURE_DEVOPS_REPO: ${{ vars.AZURE_DEVOPS_REPO }}
-
-  # Git user identity for the sync commits/operations
   GIT_AUTHOR_NAME: "GitHub Actions Bot"
   GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
 
-# ──────────────────────────────────────────────────────────────────────────────
-# PERMISSIONS (Principle of Least Privilege)
-# ──────────────────────────────────────────────────────────────────────────────
 permissions:
-  contents: read   # Read access to checkout the repository
-  actions: read    # Read access to workflow artifacts (if needed)
+  contents: read
+  actions: read
 
-# ============================================================================
-# JOBS
-# ============================================================================
 jobs:
-  # ────────────────────────────────────────────────────────────────────────────
-  # JOB 1: Pre-flight Validation
-  # ────────────────────────────────────────────────────────────────────────────
   validate:
-    name: "🔍 Pre-flight Validation"
+    name: Pre-flight Validation
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     outputs:
       should_sync: ${{ steps.check.outputs.should_sync }}
-
     steps:
       - name: Validate required secrets and variables
         id: check
         run: |
-          echo "── Validating configuration ──"
+          echo "Validating configuration"
           ERRORS=0
-
           if [ -z "${{ vars.AZURE_DEVOPS_ORG }}" ]; then
             echo "::error::Missing repository variable: AZURE_DEVOPS_ORG"
             ERRORS=$((ERRORS + 1))
           fi
-
           if [ -z "${{ vars.AZURE_DEVOPS_PROJECT }}" ]; then
             echo "::error::Missing repository variable: AZURE_DEVOPS_PROJECT"
             ERRORS=$((ERRORS + 1))
           fi
-
           if [ -z "${{ vars.AZURE_DEVOPS_REPO }}" ]; then
             echo "::error::Missing repository variable: AZURE_DEVOPS_REPO"
             ERRORS=$((ERRORS + 1))
           fi
-
           if [ -z "${{ secrets.AZURE_DEVOPS_PAT }}" ]; then
             echo "::error::Missing secret: AZURE_DEVOPS_PAT"
             ERRORS=$((ERRORS + 1))
           fi
-
           if [ "$ERRORS" -gt 0 ]; then
             echo "::error::$ERRORS configuration error(s) found. See above."
             echo "should_sync=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-
-          echo "✅ All configuration validated successfully."
+          echo "All configuration validated successfully."
           echo "should_sync=true" >> "$GITHUB_OUTPUT"
 
-      - name: Check if PR was merged (for pull_request events)
+      - name: Check if PR was merged
         if: github.event_name == 'pull_request'
         run: |
           if [ "${{ github.event.pull_request.merged }}" != "true" ]; then
@@ -145,50 +89,32 @@ jobs:
             exit 0
           fi
 
-  # ────────────────────────────────────────────────────────────────────────────
-  # JOB 2: Sync to Azure DevOps
-  # ────────────────────────────────────────────────────────────────────────────
   sync:
-    name: "🔄 Sync to Azure DevOps"
+    name: Sync to Azure DevOps
     runs-on: ubuntu-latest
     needs: validate
     if: needs.validate.outputs.should_sync == 'true'
-    timeout-minutes: 30 # Safety timeout for large repos
-
-    # Environment protection rules (optional — configure in GitHub Settings)
+    timeout-minutes: 30
     environment:
       name: azure-devops
       url: https://dev.azure.com/${{ vars.AZURE_DEVOPS_ORG }}/${{ vars.AZURE_DEVOPS_PROJECT }}/_git/${{ vars.AZURE_DEVOPS_REPO }}
-
     steps:
-      # ── Step 1: Checkout the full repository ──
       - name: Checkout repository (full clone)
         uses: actions/checkout@v4
         with:
-          # Fetch the complete history so all branches/tags are available
           fetch-depth: 0
-
-          # Fetch all branches and tags, not just the triggering ref
           fetch-tags: true
-
-          # Use the built-in GITHUB_TOKEN for checkout
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── Step 2: Configure git identity ──
       - name: Configure git identity
         run: |
           git config user.name "${{ env.GIT_AUTHOR_NAME }}"
           git config user.email "${{ env.GIT_AUTHOR_EMAIL }}"
 
-      # ── Step 3: Fetch all remote refs ──
       - name: Fetch all remote branches and tags
         run: |
-          echo "── Fetching all remote refs ──"
-
-          # Get the currently checked-out branch to exclude it from force-fetch
+          echo "Fetching all remote refs"
           CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
-
-          # Fetch all remote branches as local tracking refs, EXCEPT the one checked out
           for branch in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/||'); do
             if [ "$branch" != "$CURRENT_BRANCH" ]; then
               echo "  Fetching branch: $branch"
@@ -197,185 +123,120 @@ jobs:
               echo "  Skipping checked-out branch: $branch (already up to date via checkout)"
             fi
           done
-
-          # Fetch all tags
           git fetch origin '+refs/tags/*:refs/tags/*' --force
-
           echo ""
-          echo "── Branches ──"
+          echo "Branches:"
           git branch -a
-
           echo ""
-          echo "── Tags ──"
+          echo "Tags:"
           git tag -l
 
-      # ── Step 4: Add Azure DevOps as a remote ──      - name: Configure Azure DevOps remote
+      - name: Configure Azure DevOps remote
         env:
           AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
         run: |
-          # Disable git from using a credential helper that might interfere
           git config --local credential.helper ""
-
-          # Trim whitespace/newlines from variables (guards against copy-paste errors)
           ADO_ORG=$(echo "${{ vars.AZURE_DEVOPS_ORG }}" | tr -d '[:space:]')
           ADO_PROJECT=$(echo "${{ vars.AZURE_DEVOPS_PROJECT }}" | tr -d '[:space:]')
           ADO_REPO=$(echo "${{ vars.AZURE_DEVOPS_REPO }}" | tr -d '[:space:]')
-
-          echo "── Resolved Azure DevOps coordinates ──"
-          echo "   Org:     [${ADO_ORG}]"
-          echo "   Project: [${ADO_PROJECT}]"
-          echo "   Repo:    [${ADO_REPO}]"
-
-          # Validate none are empty after trimming
+          echo "Resolved Azure DevOps coordinates:"
+          echo "  Org:     [${ADO_ORG}]"
+          echo "  Project: [${ADO_PROJECT}]"
+          echo "  Repo:    [${ADO_REPO}]"
           if [ -z "$ADO_ORG" ] || [ -z "$ADO_PROJECT" ] || [ -z "$ADO_REPO" ]; then
-            echo "::error::One or more Azure DevOps variables are empty after trimming. Check your GitHub repository variables."
+            echo "::error::One or more Azure DevOps variables are empty after trimming."
             exit 1
           fi
-
-          # URL-encode the PAT to handle special characters
           ENCODED_PAT=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${AZURE_DEVOPS_PAT}', safe=''))")
-
-          # Construct the Azure DevOps repo URL with embedded PAT for auth
-          # Format: https://<PAT>@dev.azure.com/<org>/<project>/_git/<repo>
           AZURE_REPO_URL="https://${ENCODED_PAT}@dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_git/${ADO_REPO}"
-
-          # Add as a remote (remove first if it already exists)
           git remote remove azure 2>/dev/null || true
           git remote add azure "${AZURE_REPO_URL}"
-
-          # Verify the remote is reachable (without exposing PAT)
-          echo "✅ Azure DevOps remote configured."
-          echo "   Target: https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_git/${ADO_REPO}"
-
-          # Test connectivity
+          echo "Azure DevOps remote configured."
+          echo "  Target: https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_git/${ADO_REPO}"
           if git ls-remote azure HEAD > /dev/null 2>&1; then
-            echo "✅ Successfully connected to Azure DevOps repository."
+            echo "Successfully connected to Azure DevOps repository."
           else
             echo "::error::Cannot reach Azure DevOps repository. Check PAT, org, project, and repo name."
-            echo "   Verify URL: https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_git/${ADO_REPO}"
-            echo ""
-            echo "::error::Common causes:"
-            echo "   1. PAT expired or missing 'Code (Read & Write)' scope"
-            echo "   2. Org/Project/Repo name is misspelled (check for typos)"
-            echo "   3. The repository does not exist in Azure DevOps yet"
-            echo "   4. PAT was created for a different Azure DevOps organization"
+            echo "  Verify URL: https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_git/${ADO_REPO}"
+            echo "::error::Common causes: 1) PAT expired or wrong scope 2) Typo in org/project/repo 3) Repo does not exist 4) PAT for wrong org"
             exit 1
           fi
 
-      # ── Step 5: Dry-run check ──
       - name: Dry run check
         if: github.event.inputs.dry_run == 'true'
         run: |
-          echo "::notice::🏃 DRY RUN MODE — No changes will be pushed."
-          echo ""
-          echo "── Refs that would be pushed ──"
+          echo "::notice::DRY RUN MODE - No changes will be pushed."
           echo "Branches:"
           git branch -a
           echo ""
           echo "Tags:"
           git tag -l
           echo ""
-          echo "── Diff summary vs Azure DevOps ──"
-          git push azure --mirror --dry-run 2>&1 || echo "⚠️ Could not reach Azure DevOps for dry-run comparison."
+          echo "Diff summary vs Azure DevOps:"
+          git push azure --mirror --dry-run 2>&1 || echo "Could not reach Azure DevOps for dry-run comparison."
 
-      # ── Step 6: Push all refs to Azure DevOps ──
       - name: Sync all branches and tags to Azure DevOps
         if: github.event.inputs.dry_run != 'true'
         env:
           AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
-          GIT_TERMINAL_PROMPT: 0  # Prevent git from hanging on auth prompts
+          GIT_TERMINAL_PROMPT: 0
         run: |
-          echo "── Starting sync to Azure DevOps ──"
-          echo "   Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          echo ""
-
-          # --mirror pushes all refs (branches, tags, notes) and prunes
-          # deleted refs on the target. This creates a true mirror.
+          echo "Starting sync to Azure DevOps"
+          echo "  Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           PUSH_ARGS="--mirror"
-
-          # If force_sync is enabled, add --force (use with caution)
           if [ "${{ github.event.inputs.force_sync }}" == "true" ]; then
-            echo "⚠️  FORCE SYNC enabled — will overwrite divergent refs."
+            echo "FORCE SYNC enabled - will overwrite divergent refs."
             PUSH_ARGS="--mirror --force"
           fi
-
-          # Retry logic with exponential backoff
           MAX_RETRIES=3
           RETRY_DELAY=10
-
           for attempt in $(seq 1 $MAX_RETRIES); do
             echo ""
-            echo "── Push attempt $attempt of $MAX_RETRIES ──"
-
-            OUTPUT=$(git push azure $PUSH_ARGS 2>&1) && {
-              echo "$OUTPUT"
+            echo "Push attempt $attempt of $MAX_RETRIES"
+            if git push azure $PUSH_ARGS 2>&1; then
               echo ""
-              echo "✅ Sync completed successfully on attempt $attempt."
+              echo "Sync completed successfully on attempt $attempt."
               exit 0
-            } || {
+            else
               EXIT_CODE=$?
-              echo "$OUTPUT"
               echo ""
               echo "::warning::Push failed with exit code $EXIT_CODE"
-
-              # Provide specific guidance based on error
-              if echo "$OUTPUT" | grep -qi "authentication\|401\|403"; then
-                echo "::error::Authentication failed. The AZURE_DEVOPS_PAT may be invalid, expired, or missing Code (Read & Write) scope."
-              elif echo "$OUTPUT" | grep -qi "repository.*not found\|does not exist\|TF401019"; then
-                echo "::error::Repository not found. Verify AZURE_DEVOPS_ORG, AZURE_DEVOPS_PROJECT, and AZURE_DEVOPS_REPO values."
-              elif echo "$OUTPUT" | grep -qi "could not resolve host"; then
-                echo "::error::DNS resolution failed. Check network connectivity to dev.azure.com."
-              fi
-
               if [ "$attempt" -lt "$MAX_RETRIES" ]; then
-                echo "⚠️  Retrying in ${RETRY_DELAY}s..."
+                echo "Retrying in ${RETRY_DELAY}s..."
                 sleep $RETRY_DELAY
                 RETRY_DELAY=$((RETRY_DELAY * 2))
               else
                 echo "::error::Sync failed after $MAX_RETRIES attempts with exit code $EXIT_CODE."
                 exit 1
               fi
-            }
+            fi
           done
 
-      # ── Step 7: Verify the sync ──
       - name: Verify sync
         if: github.event.inputs.dry_run != 'true'
         run: |
-          echo "── Verifying sync ──"
+          echo "Sync Summary:"
+          echo "  Branches synced: $(git branch | wc -l)"
+          echo "  Tags synced:     $(git tag -l | wc -l)"
+          echo "  Last commit:     $(git log -1 --format='%h %s')"
+          echo "  Pushed to:       https://dev.azure.com/${{ vars.AZURE_DEVOPS_ORG }}/${{ vars.AZURE_DEVOPS_PROJECT }}/_git/${{ vars.AZURE_DEVOPS_REPO }}"
 
-          # Compare local and Azure DevOps refs
-          LOCAL_BRANCHES=$(git branch | wc -l)
-          LOCAL_TAGS=$(git tag -l | wc -l)
-
-          echo "📊 Sync Summary:"
-          echo "   Branches synced: $LOCAL_BRANCHES"
-          echo "   Tags synced:     $LOCAL_TAGS"
-          echo "   Last commit:     $(git log -1 --format='%h %s')"
-          echo "   Pushed to:       https://dev.azure.com/${{ vars.AZURE_DEVOPS_ORG }}/${{ vars.AZURE_DEVOPS_PROJECT }}/_git/${{ vars.AZURE_DEVOPS_REPO }}"
-
-      # ── Step 8: Clean up secrets from git config ──
       - name: Cleanup
         if: always()
         run: |
-          # Remove Azure remote to prevent PAT leakage in logs/artifacts
           git remote remove azure 2>/dev/null || true
-          echo "🧹 Cleanup completed — Azure remote removed."
+          echo "Cleanup completed - Azure remote removed."
 
-  # ────────────────────────────────────────────────────────────────────────────
-  # JOB 3: Notification (on failure)
-  # ────────────────────────────────────────────────────────────────────────────
   notify-on-failure:
-    name: "🚨 Notify on Failure"
+    name: Notify on Failure
     runs-on: ubuntu-latest
     needs: [validate, sync]
     if: failure()
     timeout-minutes: 5
-
     steps:
       - name: Create failure summary
         run: |
-          echo "## ❌ Azure DevOps Sync Failed" >> $GITHUB_STEP_SUMMARY
+          echo "## Azure DevOps Sync Failed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -386,54 +247,28 @@ jobs:
           echo "| **Actor** | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Timestamp** | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔧 Troubleshooting" >> $GITHUB_STEP_SUMMARY
-          echo "1. Verify \`AZURE_DEVOPS_PAT\` secret is valid and not expired." >> $GITHUB_STEP_SUMMARY
-          echo "2. Verify \`AZURE_DEVOPS_ORG\`, \`AZURE_DEVOPS_PROJECT\`, and \`AZURE_DEVOPS_REPO\` variables are correct." >> $GITHUB_STEP_SUMMARY
-          echo "3. Ensure the PAT has **Code (Read & Write)** scope." >> $GITHUB_STEP_SUMMARY
+          echo "### Troubleshooting" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify AZURE_DEVOPS_PAT secret is valid and not expired." >> $GITHUB_STEP_SUMMARY
+          echo "2. Verify AZURE_DEVOPS_ORG, AZURE_DEVOPS_PROJECT, and AZURE_DEVOPS_REPO variables are correct." >> $GITHUB_STEP_SUMMARY
+          echo "3. Ensure the PAT has Code (Read and Write) scope." >> $GITHUB_STEP_SUMMARY
           echo "4. Check if the Azure DevOps repo exists and is accessible." >> $GITHUB_STEP_SUMMARY
 
-      # Optional: Send notification to Teams/Slack/Email
-      # Uncomment and configure one of the following:
-
-      # ── Microsoft Teams Notification ──
-      # - name: Notify Microsoft Teams
-      #   if: vars.TEAMS_WEBHOOK_URL != ''
-      #   run: |
-      #     curl -H "Content-Type: application/json" \
-      #       -d '{
-      #         "title": "❌ Azure DevOps Sync Failed",
-      #         "text": "Sync from GitHub (${{ github.repository }}) to Azure DevOps failed.\n\nBranch: ${{ github.ref_name }}\nActor: ${{ github.actor }}\n\n[View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
-      #       }' \
-      #       "${{ vars.TEAMS_WEBHOOK_URL }}"
-
-      # ── Slack Notification ──
-      # - name: Notify Slack
-      #   if: vars.SLACK_WEBHOOK_URL != ''
-      #   run: |
-      #     curl -X POST -H "Content-Type: application/json" \
-      #       -d '{"text":"❌ Azure DevOps Sync Failed for ${{ github.repository }} on branch ${{ github.ref_name }}. <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"}' \
-      #       "${{ vars.SLACK_WEBHOOK_URL }}"
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # JOB 4: Success Summary
-  # ────────────────────────────────────────────────────────────────────────────
   summary:
-    name: "📋 Sync Summary"
+    name: Sync Summary
     runs-on: ubuntu-latest
     needs: [validate, sync]
     if: success()
     timeout-minutes: 5
-
     steps:
       - name: Create success summary
         run: |
-          echo "## ✅ Azure DevOps Sync Successful" >> $GITHUB_STEP_SUMMARY
+          echo "## Azure DevOps Sync Successful" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Target** | [Azure DevOps Repo](https://dev.azure.com/${{ vars.AZURE_DEVOPS_ORG }}/${{ vars.AZURE_DEVOPS_PROJECT }}/_git/${{ vars.AZURE_DEVOPS_REPO }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Trigger** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Branch/Ref** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch/Ref** | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Actor** | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Timestamp** | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
