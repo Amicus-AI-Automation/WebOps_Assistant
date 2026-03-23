@@ -8,8 +8,14 @@
         {
             "action": "fill",
             "selector": "#verifyEmail",
-            "value": "{reported_email}",
+            "value": "oparchon@gmail.com",
             "description": "Enter reported email"
+        },
+        {
+            "action": "fill",
+            "selector": "#verifyPass",
+            "value": "00987654321",
+            "description": "Enter reported password"
         },
         {
             "action": "click",
@@ -56,6 +62,11 @@
         },
         {
             "action": "click",
+            "selector": "#p3AddBtn",
+            "description": "Add Monitor to cart"
+        },
+        {
+            "action": "click",
             "selector": "#downloadCartBtn",
             "description": "Download cart"
         },
@@ -89,7 +100,13 @@
         {
             "action": "click",
             "selector": "#adminSelect",
-            "description": "Select Admin"
+            "description": "Click on the dropdown"
+        },
+        {
+            "action": "select",
+            "selector": "#adminSelect",
+            "value": "1",
+            "description": "Select the admin based on the timing"
         },
         {
             "action": "click",

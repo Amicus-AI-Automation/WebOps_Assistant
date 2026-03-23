@@ -45,5 +45,8 @@ RAG_VECTOR_STORE = RAG_DIR / "vector_store.index"
 RAG_MODEL_NAME = "all-MiniLM-L6-v2"
 RAG_TOP_K = 1  # Number of nearest matches to retrieve
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAkWUhcafnb8PJACOyGCdUAmtSkXTD4BNE")
-GEMINI_MODEL = "gemini-2.0-flash"  # Use available model 2.0-flash
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = "gemini-2.0-flash"
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = "openai/gpt-oss-20b" 

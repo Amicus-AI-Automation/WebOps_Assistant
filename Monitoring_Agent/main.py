@@ -116,7 +116,6 @@ async def detect_session(page: Page) -> dict | None:
     except Exception as e:
         logger.error(f"Failed to read session: {e}")
         return None
-        return None
 
 
 async def detect_logout(page: Page) -> bool:

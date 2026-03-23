@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-import google.generativeai as genai
+import groq
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -28,8 +28,8 @@ from core.config import (
     RAG_MODEL_NAME,
     RAG_TOP_K,
     RAG_VECTOR_STORE,
-    GEMINI_API_KEY,
-    GEMINI_MODEL,
+    GROQ_API_KEY,
+    GROQ_MODEL,
 )
 from core.models import (
     ActionType,
@@ -52,11 +52,11 @@ class DiagnosisAgent:
         self._kb = self._load_knowledge_base()
         self._index = self._load_vector_store()
         
-        # Initialize Gemini
-        if not GEMINI_API_KEY:
-            logger.warning("GEMINI_API_KEY not found in environment. LLM generation will fail.")
-        genai.configure(api_key=GEMINI_API_KEY)
-        self._llm = genai.GenerativeModel(GEMINI_MODEL)
+        # Initialize Groq
+        if not GROQ_API_KEY:
+            logger.warning("GROQ_API_KEY not found in environment. LLM generation will fail.")
+        self._client = groq.Groq(api_key=GROQ_API_KEY)
+        self._model_name = GROQ_MODEL
         
         logger.info(f"DiagnosisAgent ready. KB size: {len(self._kb)}, Index size: {self._index.ntotal}")
 
@@ -202,14 +202,19 @@ Example Output:
 """
 
         try:
-            logger.info("Calling Gemini for step grounding...")
+            logger.info("Calling Groq for step grounding...")
             response = await asyncio.to_thread(
-                self._llm.generate_content, 
-                prompt,
-                generation_config={"response_mime_type": "application/json"}
+                self._client.chat.completions.create,
+                model=self._model_name,
+                messages=[
+                    {"role": "system", "content": "You are an expert Automation Agent. Return only valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"}
             )
             
-            raw_json = response.text.strip()
+            raw_json = response.choices[0].message.content.strip()
             # Clean up potential markdown code blocks if the model ignored instructions
             if "```json" in raw_json:
                 raw_json = raw_json.split("```json")[1].split("```")[0].strip()
